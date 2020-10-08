@@ -140,15 +140,57 @@ clean_df %>%
 ```
 
 
+
 # Models
 
 ```{r recipe}
 
 reg_df = clean_df %>% 
-  select(-crisisJST)
+  select(-crisisJST, -year, -country) %>% 
+  mutate(lead_crisis = factor(lead_crisis, levels = c("1","0")))
 
 my_recipe = recipe(lead_crisis ~ ., data = reg_df) %>% 
-  step_scale(all_numeric())
+  step_normalize(all_numeric(),-all_outcomes())
+  
+data_prep = my_recipe %>% 
+  prep()
+
+
+```
+
+
+```{r logit_spec}
+
+logit_spec = logistic_reg() %>% 
+  set_engine("glm")
+
+
+```
+
+
+
+```{r workflow}
+
+logit_fit = workflow() %>% 
+  add_recipe(my_recipe) %>% 
+  add_model(logit_spec) %>% 
+  fit(data = reg_df)
+
+```
+
+# Results
+
+```{r logit, results="asis"}
+
+logit_fit %>% 
+  pull_workflow_fit() %>% 
+  tidy() %>% 
+  filter(!term == "(Intercept)") %>% 
+  ggplot(aes(x = reorder(term, estimate), y = estimate,
+             fill = (p.value < 0.05))) + 
+  geom_col() + 
+  scale_fill_manual(values = c("lightblue","lightgrey")) + 
+  coord_flip()
 
 
 ```
