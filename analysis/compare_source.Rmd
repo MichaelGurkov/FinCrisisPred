@@ -1,0 +1,174 @@
+---
+title: Replication
+---
+
+```{r include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, error = FALSE, warning = FALSE,
+                      message = FALSE)
+
+```
+
+
+```{r load_libraries}
+
+library(tidyverse)
+
+library(tidymodels)
+
+library(readxl)
+
+library(stargazer)
+
+```
+
+
+```{r setup}
+
+theme_set(theme_bw() + theme(legend.position = "bottom",
+                             legend.title = element_blank()))
+
+```
+
+
+```{r params}
+
+params = list()
+
+params$xreg_vars = c(
+  "yield_slope",
+  "credit",
+  "stock_price",
+  "debt_ratio",
+  "consumption",
+  "investment",
+  "current_account",
+  "public_debt",
+  "broad_money",
+  "cpi"
+)
+
+params$vars_to_rates = c(
+  "cpi",
+  "consumption",
+  "stock_price"
+)
+
+params$vars_to_diff = c(
+  "credit",
+  "broad_money",
+  "public_debt",
+  "debt_ratio",
+  "investment",
+  "current_account"
+)
+
+params$vars_to_gdp = c(
+  "broad_money",
+  "credit",
+  "current_account")
+
+```
+
+
+```{r import_data}
+
+df = read_xlsx(paste0(
+  file.path(Sys.getenv("USERPROFILE")),
+  "\\OneDrive - Bank Of Israel\\Data\\",
+  "MacroHistory\\JSTdatasetR3.xlsx"), sheet = "Data") %>% 
+  rename(credit = tloans,
+         stock_price = stocks,
+         consumption = rconpc,
+         investment = iy,
+         current_account = ca,
+         public_debt = debtgdp,
+         broad_money = money) %>% 
+  mutate(yield_slope = ltrate - stir) %>% 
+  mutate(debt_ratio = credit * ltrate / gdp)
+
+
+
+```
+
+
+```{r import_english_data}
+
+eng_df = read.delim(paste0(
+  "C:\\Users\\micha\\Documents\\",
+  "MachineLearningCrisisPrediction\\results",
+  "\\baseline\\data_all_CV_2_crisisSHAP_.txt"))
+
+eng_df = eng_df %>% 
+  select(-starts_with("global")) %>% 
+  rename(cpi = cpi_pdiff2,
+         yield_slope = drate,
+         credit = tloan_gdp_rdiff2,
+         stock_price = stock_pdiff2,
+         debt_ratio = tdbtserv_gdp_rdiff2,
+         consumption = cons_pdiff2,
+         investment = inv_gdp_rdiff2,
+         current_account = ca_gdp_rdiff2,
+         public_debt = pdebt_gdp_rdiff2,
+         broad_money = bmon_gdp_rdiff2) %>% 
+  select(year, iso, params$xreg_vars)
+
+```
+
+
+```{r cleaning_up_data}
+
+clean_df = df %>% 
+  filter(!year %in% unique(c(1914:1918, 1933:1939, 1939:1945))) %>% 
+  group_by(iso) %>% 
+  arrange(year) %>% 
+  filter(!year %in% c(sapply(year[crisisJST == 1],
+                                  function(temp){temp + 0:4}))) %>% 
+  select(all_of(c(names(eng_df),"gdp"))) %>% 
+  mutate(across(params$vars_to_gdp, ~ . / gdp)) %>% 
+  mutate(across(params$vars_to_rates, ~ (. / lag(.)) - 1)) %>% 
+  mutate(across(params$vars_to_diff, ~c(NA,NA, diff(.,2)))) %>% 
+  ungroup() %>% 
+  mutate(across(where(is.numeric) & !"year",
+                ~as.numeric(scale(.,center = TRUE, scale = TRUE)))) %>% 
+  select(all_of(names(eng_df))) %>% 
+  filter(complete.cases(.))
+
+```
+
+
+```{r compare_df}
+
+compare_df = inner_join(clean_df, eng_df,
+                        by = c("year", "iso"),
+                        suffix = c("-michael","-eng")) %>% 
+  pivot_longer(-c("year", "iso")) %>% 
+  separate(name, into = c("feature","source"), sep = "-")
+
+
+```
+
+```{r correl_plot}
+
+compare_df %>% 
+  pivot_wider(id_cols = c("year","iso","feature"),
+              names_from = source,
+              values_from = value) %>% 
+  group_by(feature) %>% 
+  summarise(corr = cor(michael,eng), .group = "drop") %>% 
+  ggplot(aes(x = reorder(feature, corr), y = corr)) + 
+  geom_col() + 
+  coord_flip()
+
+```
+
+
+```{r}
+
+compare_df %>% 
+  filter(feature == "cpi") %>% 
+  ggplot(aes(x = year, y = value, color = source)) + 
+  geom_line()
+
+```
+
