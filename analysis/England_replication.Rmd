@@ -140,8 +140,8 @@ clean_df %>%
 
 
 
-# Models
 
+# Models
 
 ```{r models_spec}
 
@@ -203,31 +203,4 @@ models_df = models_df %>%
 
 ```
 
-
-# Results
-
-```{r table}
-
-logit_fit %>% 
-  pull_workflow_fit() %>% 
-  tidy() %>% 
-  gt::gt()
-
-```
-
-
-```{r plot_df}
-
-logit_fit %>% 
-  pull_workflow_fit() %>% 
-  tidy() %>% 
-  filter(!term == "(Intercept)") %>% 
-  ggplot(aes(x = reorder(term, estimate), y = estimate,
-             fill = (p.value < 0.05))) + 
-  geom_col() + 
-  scale_fill_manual(values = c("lightblue","lightgrey")) + 
-  coord_flip()
-
-
-```
 
