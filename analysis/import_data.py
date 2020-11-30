@@ -1,17 +1,12 @@
 import numpy as np 
 import pandas as pd 
-import matplotlib.pyplot as plt 
-import seaborn as sns
-sns.set()
-# matplotlib inline
-pd.options.display.max_rows = 100
 
-file_path = "C:\\Users\\internet\\OneDrive - Bank Of Israel" + \
+file_path = "C:\\Users\\micha\\OneDrive - Bank Of Israel" + \
 "\\Data\\MacroHistory\\JSTdatasetR3.xlsx"
 
 raw_df = pd.read_excel(file_path, sheet_name='Data')
 raw_df.sort_values(['country', 'year'], ignore_index = True, inplace = True)
-raw_df.to_csv("Desktop\\raw_df.csv")
+raw_df.to_csv("C:\\Users\\micha\\Desktop\\raw_df.csv")
 
 
 # Clean df
@@ -25,4 +20,4 @@ for col in clean_df.columns:
         clean_df[col][years_to_mask] = np.nan
         
 
-clean_df.to_csv("Desktop\clean_df.csv")
+clean_df.to_csv("C:\\Users\\micha\\Desktop\\clean_df.csv")
