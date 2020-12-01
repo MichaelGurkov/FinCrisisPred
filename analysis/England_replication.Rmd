@@ -90,10 +90,12 @@ raw_df_python = read_csv("C:\\Users\\internet\\Desktop\\raw_df.csv",
 
 if(all_equal(raw_df, raw_df_python)){print("raw df identical")}
 
+
+
 all.equal(raw_df %>% 
-            filter(complete.cases(.)),
+            mutate(across(everything(), as.character)),
           raw_df_python %>% 
-            filter(complete.cases(.)))
+            mutate(across(everything(), as.character)))
 
 ```
 
@@ -104,7 +106,7 @@ clean_df = raw_df %>%
   mutate(across(-c("year","country"),
                 ~replace(.,year %in% c(1914:1918,1934:1945), NA)))
 
-clean_df_python = read_csv("C:\\Users\\micha\\Desktop\\clean_df.csv",
+clean_df_python = read_csv("C:\\Users\\internet\\Desktop\\clean_df.csv",
                            col_types = cols(
   .default = col_double(),
   country = col_character(),
@@ -113,9 +115,9 @@ clean_df_python = read_csv("C:\\Users\\micha\\Desktop\\clean_df.csv",
   select(-1)
 
 if(isTRUE(all.equal(clean_df %>% 
-            filter(complete.cases(.)),
+            mutate(across(everything(), as.character)),
           clean_df_python %>% 
-            filter(complete.cases(.))))){print("Clean df - passed")}
+           mutate(across(everything(), as.character))))){print("Clean df - passed")}
 
 ```
 
@@ -145,7 +147,7 @@ transformed_df = clean_df %>%
   arrange(country, year)
 
 
-transformed_df_python = read_csv("C:\\Users\\micha\\Desktop\\transformed_df.csv",
+transformed_df_python = read_csv("C:\\Users\\internet\\Desktop\\transformed_df.csv",
                            col_types = cols(
   .default = col_double(),
   country = col_character(),
@@ -153,11 +155,21 @@ transformed_df_python = read_csv("C:\\Users\\micha\\Desktop\\transformed_df.csv"
 )) %>% 
   select(-1)
 
-if(isTRUE(all.equal(transformed_df %>% 
-            select(names(transformed_df_python)) %>% 
-            filter(complete.cases(.)),
-          transformed_df_python %>% 
-            filter(complete.cases(.))))){print("Transformed df - passed")}
+
+
+if(isTRUE(all.equal(
+  transformed_df %>%
+  select(names(transformed_df_python)) %>%
+  # mutate(across(everything(), as.character)) %>% 
+  identity(),
+  transformed_df_python %>%
+  # mutate(across(everything(), as.character)) %>% 
+  identity()
+  )
+  )) {
+  print("Transformed df - passed")
+}
+
 
 
 ```
@@ -173,7 +185,7 @@ global_df = transformed_df %>%
                filter(!country == temp_country) %>% 
                filter(year == temp_year) %>% 
                pull(yield_curve_slope) %>% 
-               mean())
+               mean(.,na.rm = TRUE))
       })) %>% 
     mutate(global_credit_growth = map2_dbl(
     country, year,
@@ -182,7 +194,7 @@ global_df = transformed_df %>%
                filter(!country == temp_country) %>% 
                filter(year == temp_year) %>% 
                pull(credit) %>% 
-               mean())
+               mean(., na.rm = TRUE))
       })) %>% 
   mutate(short_term_interest_rate = stir,
          long_term_interest_rate = ltrate,
@@ -197,7 +209,7 @@ global_df = transformed_df %>%
   
 
 
-global_df_python = read_csv("C:\\Users\\micha\\Desktop\\global_df.csv",
+global_df_python = read_csv("C:\\Users\\internet\\Desktop\\global_df.csv",
                            col_types = cols(
   .default = col_double(),
   country = col_character(),
@@ -205,25 +217,54 @@ global_df_python = read_csv("C:\\Users\\micha\\Desktop\\global_df.csv",
 )) %>% 
   select(-1)
 
-if(isTRUE(all.equal(global_df %>% 
-            select(names(global_df_python)) %>% 
-            filter(complete.cases(.)),
-          global_df_python %>% 
-            filter(complete.cases(.))))){print("Global df - passed")}
+
+temp = global_df %>% 
+  select(names(global_df_python), -starts_with("global"))
+
+if(isTRUE(all.equal(global_df %>%
+                    select(
+                      names(global_df_python),-starts_with("global")
+                      ),
+                    global_df_python %>% 
+                    select(-starts_with("global")))
+          ) &
+   sum(is.na(global_df$global_credit_growth)) ==
+   sum(is.na(global_df_python$global_credit_growth))
+   ) {
+  print("Global df - passed")
+}
 
 
 ```
 
 
-```{r, eval=FALSE}
- %>% 
+```{r add_crisis_vars}
+
+crisis_df = global_df %>% 
+  group_by(country) %>% 
   mutate(lead_crisis = if_else(
     lead(crisisJST) == 1 | lead(crisisJST,2) == 1,1,0)) %>% 
   mutate(lead_crisis = factor(lead_crisis, levels = c(1,0))) %>% 
+  mutate(lead_crisis = replace_na(lead_crisis,0)) %>% 
   filter(!year %in% c(sapply(year[crisisJST == 1],
                              function(temp){temp + 0:4}))) %>% 
-  ungroup() %>% 
-  select(params$xreg_vars, lead_crisis)
+  ungroup()
+
+crisis_df_python = read_csv("C:\\Users\\internet\\Desktop\\crisis_df.csv",
+                           col_types = cols(
+  .default = col_double(),
+  country = col_character(),
+  iso = col_character()
+)) %>% 
+  select(-1)
+
+
+if(isTRUE(all.equal(crisis_df %>% 
+                    rename(y = lead_crisis) %>% 
+                    select(names(crisis_df_python)),
+                    crisis_df_python))){
+  print("Crisis df - passed")}
+
 ```
 
 
@@ -258,6 +299,8 @@ clean_df %>%
   
 
 ```
+
+
 
 
 
