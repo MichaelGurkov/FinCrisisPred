@@ -106,7 +106,8 @@ clean_df = raw_df %>%
   mutate(across(-c("year","country"),
                 ~replace(.,year %in% c(1914:1918,1934:1945), NA)))
 
-clean_df_python = read_csv("C:\\Users\\internet\\Desktop\\clean_df.csv",
+clean_df_python = read_csv(paste0(file.path(Sys.getenv("USERPROFILE")),
+                           "\\Desktop\\clean_df.csv"),
                            col_types = cols(
   .default = col_double(),
   country = col_character(),
@@ -147,7 +148,8 @@ transformed_df = clean_df %>%
   arrange(country, year)
 
 
-transformed_df_python = read_csv("C:\\Users\\internet\\Desktop\\transformed_df.csv",
+transformed_df_python = read_csv(paste0(file.path(Sys.getenv("USERPROFILE")),
+                           "\\Desktop\\transformed_df.csv"),
                            col_types = cols(
   .default = col_double(),
   country = col_character(),
@@ -209,7 +211,8 @@ global_df = transformed_df %>%
   
 
 
-global_df_python = read_csv("C:\\Users\\internet\\Desktop\\global_df.csv",
+global_df_python = read_csv(paste0(file.path(Sys.getenv("USERPROFILE")),
+                           "\\Desktop\\global_df.csv"),
                            col_types = cols(
   .default = col_double(),
   country = col_character(),
@@ -218,16 +221,9 @@ global_df_python = read_csv("C:\\Users\\internet\\Desktop\\global_df.csv",
   select(-1)
 
 
-temp = global_df %>% 
-  select(names(global_df_python), -starts_with("global"))
-
 if(isTRUE(all.equal(global_df %>%
-                    select(
-                      names(global_df_python),-starts_with("global")
-                      ),
-                    global_df_python %>% 
-                    select(-starts_with("global")))
-          ) &
+                    select(names(global_df_python)),
+                    global_df_python)) &
    sum(is.na(global_df$global_credit_growth)) ==
    sum(is.na(global_df_python$global_credit_growth))
    ) {
@@ -244,13 +240,16 @@ crisis_df = global_df %>%
   group_by(country) %>% 
   mutate(lead_crisis = if_else(
     lead(crisisJST) == 1 | lead(crisisJST,2) == 1,1,0)) %>% 
-  mutate(lead_crisis = factor(lead_crisis, levels = c(1,0))) %>% 
-  mutate(lead_crisis = replace_na(lead_crisis,0)) %>% 
-  filter(!year %in% c(sapply(year[crisisJST == 1],
-                             function(temp){temp + 0:4}))) %>% 
-  ungroup()
+  # mutate(lead_crisis = factor(lead_crisis, levels = c(1,0))) %>% 
+  mutate(lead_crisis = replace_na(lead_crisis,0)) %>%
+  # filter(!year %in% c(sapply(year[crisisJST == 1],
+  #                            function(temp){temp + 0:4}))) %>% 
+  ungroup() %>% 
+  filter(complete.cases(.)) %>% 
+  identity()
 
-crisis_df_python = read_csv("C:\\Users\\internet\\Desktop\\crisis_df.csv",
+crisis_df_python = read_csv(paste0(file.path(Sys.getenv("USERPROFILE")),
+                           "\\Desktop\\crisis_df.csv"),
                            col_types = cols(
   .default = col_double(),
   country = col_character(),
@@ -299,6 +298,7 @@ clean_df %>%
   
 
 ```
+
 
 
 
