@@ -93,45 +93,40 @@ raw_df = read_xlsx(paste0(
   "MacroHistory\\JSTdatasetR3.xlsx"), sheet = "Data") %>% 
   arrange(country, year)
 
-raw_df_python = read_csv("C:\\Users\\internet\\Desktop\\raw_df.csv",
-                         col_types = cols(
-  .default = col_double(),
-  country = col_character(),
-  iso = col_character()
-)) %>% 
-  suppressWarnings() %>% 
-  select(-1)
-
-if(all_equal(raw_df, raw_df_python)){print("raw df identical")}
-
-
-
-all.equal(raw_df %>% 
-            mutate(across(everything(), as.character)),
-          raw_df_python %>% 
-            mutate(across(everything(), as.character)))
 
 ```
 
 
 ```{r clean_df}
 
-clean_df = raw_df %>% 
+df = raw_df %>% 
   mutate(across(-c("year","country"),
-                ~replace(.,year %in% c(1914:1918,1934:1945), NA)))
-
-transformed_df = clean_df %>% 
+                ~replace(.,year %in% c(1914:1918,1934:1945), NA))) %>% 
   mutate(credit = tloans,
          stock_prices = stocks,
          real_consumption_per_capita = rconpc,
          investment = iy,
          current_account = ca,
          public_debt = debtgdp,
-         broad_money = money) %>% 
+         broad_money = money,
+         short_term_interest_rate = stir,
+         long_term_interest_rate = ltrate)
+
+df = df %>% 
+  mutate(household_loans = thh / gdp) %>% 
+  mutate(business_loans = tbus / gdp) %>% 
+  mutate(house_prices = hpnom / lag(hpnom,2) - 1) %>% 
   mutate(yield_curve_slope = ltrate - stir) %>% 
-  mutate(debt_service_ratio = credit * ltrate / gdp) %>% 
+  mutate(debt_service_ratio = credit * ltrate / gdp)
+  
+  
+df = df %>% 
   group_by(country) %>% 
   arrange(year) %>% 
+  mutate(across(c(household_loans,business_loans), ~c(NA,NA,diff(.,2)))) %>% 
+  mutate(across(c(household_loans,business_loans,house_prices), ~ . * 100)) %>% 
+  mutate(household_loans = replace(household_loans,
+                                   is.na(business_loans), NA)) %>% 
   mutate(across(params$vars_to_gdp, ~ . / gdp)) %>% 
   mutate(across(params$vars_to_rates, ~ (. / lag(.,2)) - 1)) %>% 
   mutate(across(params$vars_to_diff, ~c(NA,NA, diff(.,2)))) %>% 
@@ -141,12 +136,16 @@ transformed_df = clean_df %>%
   ungroup() %>% 
   arrange(country, year)
 
+```
 
-transformed_df = transformed_df %>% 
+
+```{r add_global_vars}
+
+df = df %>% 
   mutate(global_yield_curve_slope = map2_dbl(
     country, year,
     function(temp_country, temp_year){
-      return(transformed_df %>% 
+      return(df %>% 
                filter(!country == temp_country) %>% 
                filter(year == temp_year) %>% 
                pull(yield_curve_slope) %>% 
@@ -155,30 +154,12 @@ transformed_df = transformed_df %>%
     mutate(global_credit_growth = map2_dbl(
     country, year,
     function(temp_country, temp_year){
-      return(transformed_df %>% 
+      return(df %>% 
                filter(!country == temp_country) %>% 
                filter(year == temp_year) %>% 
                pull(credit) %>% 
                mean(., na.rm = TRUE))
       })) %>% 
-  mutate(short_term_interest_rate = stir,
-         long_term_interest_rate = ltrate,
-         household_loans = thh / gdp,
-         business_loans = tbus / gdp,
-         house_prices = hpnom / lag(hpnom,2) - 1) %>% 
-  group_by(country) %>% 
-  mutate(across(c(household_loans,business_loans), ~c(NA,NA,diff(.,2)))) %>% 
-  mutate(across(c(household_loans,business_loans,house_prices), ~ . * 100)) %>% 
-  ungroup() %>% 
-  mutate(household_loans = replace(household_loans, is.na(business_loans), NA))
-  
-
-```
-
-
-```{r add_crisis_vars}
-
-crisis_df = transformed_df %>% 
   group_by(country) %>% 
   mutate(lead_crisis = if_else(
     lead(crisisJST) == 1 | lead(crisisJST,2) == 1,1,0)) %>% 
@@ -189,20 +170,7 @@ crisis_df = transformed_df %>%
   filter(across(params$baseline_vars, ~!is.na(.))) %>% 
   identity()
 
-crisis_df_python = read_csv(paste0(file.path(Sys.getenv("USERPROFILE")),
-                       "\\Desktop\\df_clean.csv"),
-                col_types = cols(
-                  .default = col_double(),
-                  country = col_character(),
-                  iso = col_character()
-                )) %>% 
-  select(-1)
 
-
-if(all.equal(crisis_df %>% 
-             rename(y = lead_crisis) %>% 
-             select(names(crisis_df_python)),
-             crisis_df_python)){print("Same datasets")}
 
 
 ```
@@ -215,20 +183,11 @@ if(all.equal(crisis_df %>%
 The data set spans the period for `r paste0(range(df$year), collapse = "-")` for `r length(unique(df$iso))` countries. The countries are mainly European leaders as well as Japan and USA.
 
 
-```{r cleaning_up_data}
+```{r compare_crisis_vs_non_crisis, results="asis"}
 
-
-
-
-
-```
-
-
-```{r compare_crisis_vs_non_crisis, results="asis", eval=FALSE}
-
-clean_df %>% 
+df %>% 
   filter(crisisJST == 0) %>% 
-  select(-c("crisisJST","iso")) %>% 
+  select(lead_crisis, year, params$baseline_vars) %>% 
   mutate(lead_crisis = recode(lead_crisis,
                               `0` = "Normal",`1` = "Build_up")) %>% 
   pivot_longer(-c("year","lead_crisis")) %>% 
@@ -254,7 +213,7 @@ clean_df %>%
 
 # Models
 
-```{r models_spec}
+```{r models_spec, eval=FALSE}
 
 
 models_df = list(logit = logistic_reg() %>% 
@@ -269,7 +228,7 @@ models_df = list(logit = logistic_reg() %>%
 
 
 
-```{r models_fit}
+```{r models_fit, eval=FALSE}
 
 models_df = models_df %>% 
   mutate(models_wf = map(model_spec,function(temp_spec){
@@ -288,7 +247,7 @@ models_df = models_df %>%
 
 
 
-```{r predictions}
+```{r predictions, eval=FALSE}
 
 models_df = models_df %>% 
   mutate(models_pred = map(models_wf,function(temp_wf){

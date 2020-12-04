@@ -20,4 +20,4 @@ for col in clean_df.columns:
         clean_df[col][years_to_mask] = np.nan
         
 
-clean_df.to_csv("C:\\Users\\micha\\Desktop\\clean_df.csv")
+# clean_df.to_csv("C:\\Users\\micha\\Desktop\\clean_df.csv")

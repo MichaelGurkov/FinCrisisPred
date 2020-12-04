@@ -29,4 +29,4 @@ global_df[['household_loans', 'business_loans', 'house_prices']] = global_df[['h
 global_df['household_loans'] = np.where(global_df['business_loans'].notnull(), global_df['household_loans'], np.nan)
 
 
-global_df.to_csv("C:\\Users\\micha\\Desktop\\global_df.csv")
+# global_df.to_csv("C:\\Users\\micha\\Desktop\\global_df.csv")
