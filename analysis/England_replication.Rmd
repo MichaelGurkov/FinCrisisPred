@@ -68,6 +68,20 @@ params$vars_to_gdp = c(
   "credit",
   "current_account")
 
+params$baseline_vars = c(
+  'yield_curve_slope',
+  'credit',
+  'stock_prices',
+  'debt_service_ratio',
+  'real_consumption_per_capita',
+  'investment',
+  'current_account',
+  'public_debt',
+  'broad_money',
+  'cpi'
+)
+
+
 ```
 
 
@@ -106,26 +120,6 @@ clean_df = raw_df %>%
   mutate(across(-c("year","country"),
                 ~replace(.,year %in% c(1914:1918,1934:1945), NA)))
 
-clean_df_python = read_csv(paste0(file.path(Sys.getenv("USERPROFILE")),
-                           "\\Desktop\\clean_df.csv"),
-                           col_types = cols(
-  .default = col_double(),
-  country = col_character(),
-  iso = col_character()
-)) %>% 
-  select(-1)
-
-if(isTRUE(all.equal(clean_df %>% 
-            mutate(across(everything(), as.character)),
-          clean_df_python %>% 
-           mutate(across(everything(), as.character))))){print("Clean df - passed")}
-
-```
-
-
-
-```{r transform_vars}
-
 transformed_df = clean_df %>% 
   mutate(credit = tloans,
          stock_prices = stocks,
@@ -148,38 +142,7 @@ transformed_df = clean_df %>%
   arrange(country, year)
 
 
-transformed_df_python = read_csv(paste0(file.path(Sys.getenv("USERPROFILE")),
-                           "\\Desktop\\transformed_df.csv"),
-                           col_types = cols(
-  .default = col_double(),
-  country = col_character(),
-  iso = col_character()
-)) %>% 
-  select(-1)
-
-
-
-if(isTRUE(all.equal(
-  transformed_df %>%
-  select(names(transformed_df_python)) %>%
-  # mutate(across(everything(), as.character)) %>% 
-  identity(),
-  transformed_df_python %>%
-  # mutate(across(everything(), as.character)) %>% 
-  identity()
-  )
-  )) {
-  print("Transformed df - passed")
-}
-
-
-
-```
-
-
-```{r add_global_vars}
-
-global_df = transformed_df %>% 
+transformed_df = transformed_df %>% 
   mutate(global_yield_curve_slope = map2_dbl(
     country, year,
     function(temp_country, temp_year){
@@ -210,61 +173,41 @@ global_df = transformed_df %>%
   mutate(household_loans = replace(household_loans, is.na(business_loans), NA))
   
 
-
-global_df_python = read_csv(paste0(file.path(Sys.getenv("USERPROFILE")),
-                           "\\Desktop\\global_df.csv"),
-                           col_types = cols(
-  .default = col_double(),
-  country = col_character(),
-  iso = col_character()
-)) %>% 
-  select(-1)
-
-
-if(isTRUE(all.equal(global_df %>%
-                    select(names(global_df_python)),
-                    global_df_python)) &
-   sum(is.na(global_df$global_credit_growth)) ==
-   sum(is.na(global_df_python$global_credit_growth))
-   ) {
-  print("Global df - passed")
-}
-
-
 ```
 
 
 ```{r add_crisis_vars}
 
-crisis_df = global_df %>% 
+crisis_df = transformed_df %>% 
   group_by(country) %>% 
   mutate(lead_crisis = if_else(
     lead(crisisJST) == 1 | lead(crisisJST,2) == 1,1,0)) %>% 
-  # mutate(lead_crisis = factor(lead_crisis, levels = c(1,0))) %>% 
   mutate(lead_crisis = replace_na(lead_crisis,0)) %>%
-  # filter(!year %in% c(sapply(year[crisisJST == 1],
-  #                            function(temp){temp + 0:4}))) %>% 
+  filter(!year %in% c(sapply(year[crisisJST == 1],
+                             function(temp){temp + 0:4}))) %>%
   ungroup() %>% 
-  filter(complete.cases(.)) %>% 
+  filter(across(params$baseline_vars, ~!is.na(.))) %>% 
   identity()
 
 crisis_df_python = read_csv(paste0(file.path(Sys.getenv("USERPROFILE")),
-                           "\\Desktop\\crisis_df.csv"),
-                           col_types = cols(
-  .default = col_double(),
-  country = col_character(),
-  iso = col_character()
-)) %>% 
+                       "\\Desktop\\df_clean.csv"),
+                col_types = cols(
+                  .default = col_double(),
+                  country = col_character(),
+                  iso = col_character()
+                )) %>% 
   select(-1)
 
 
-if(isTRUE(all.equal(crisis_df %>% 
-                    rename(y = lead_crisis) %>% 
-                    select(names(crisis_df_python)),
-                    crisis_df_python))){
-  print("Crisis df - passed")}
+if(all.equal(crisis_df %>% 
+             rename(y = lead_crisis) %>% 
+             select(names(crisis_df_python)),
+             crisis_df_python)){print("Same datasets")}
+
 
 ```
+
+
 
 
 # EDA
@@ -298,6 +241,7 @@ clean_df %>%
   
 
 ```
+
 
 
 
