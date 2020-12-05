@@ -176,8 +176,6 @@ df = df %>%
 ```
 
 
-
-
 # EDA
 
 The data set spans the period for `r paste0(range(df$year), collapse = "-")` for `r length(unique(df$iso))` countries. The countries are mainly European leaders as well as Japan and USA.
@@ -206,21 +204,16 @@ df %>%
 
 
 
-
-
-
-
-
 # Models
 
-```{r models_spec, eval=FALSE}
+```{r models_spec}
 
-
-models_df = list(logit = logistic_reg() %>% 
-       set_engine("glm"),
-     tree = decision_tree(mode = "classification") %>% 
-       set_engine("C5.0")
-     ) %>% 
+models_df = list(
+  logit = logistic_reg() %>%
+    set_engine("glm"),
+  tree = decision_tree(mode = "classification") %>%
+    set_engine("C5.0")
+) %>%
   enframe(value = "model_spec")
 
 
@@ -228,19 +221,24 @@ models_df = list(logit = logistic_reg() %>%
 
 
 
-```{r models_fit, eval=FALSE}
+```{r models_fit}
+
+clean_df = df %>% 
+  select(lead_crisis, params$baseline_vars, starts_with("global")) %>% 
+  mutate(lead_crisis = factor(lead_crisis, levels = c(0,1))) %>% 
+  mutate(across(-lead_crisis, scale))
+
 
 models_df = models_df %>% 
-  mutate(models_wf = map(model_spec,function(temp_spec){
+  mutate(models_fit = map(model_spec,function(temp_spec){
     
-  temp_fit = workflow() %>% 
-  add_formula(formula = formula("lead_crisis ~ .")) %>% 
-  add_model(temp_spec) %>% 
-  fit(data = clean_df)
+  temp_fit = temp_spec %>% 
+    fit(lead_crisis ~ ., data = clean_df)
     
   return(temp_fit)
     
   }))
+
 
 
 ```
@@ -250,11 +248,11 @@ models_df = models_df %>%
 ```{r predictions, eval=FALSE}
 
 models_df = models_df %>% 
-  mutate(models_pred = map(models_wf,function(temp_wf){
+  mutate(models_pred = map(models_fit,function(temp_fit){
     
   temp_pred = clean_df %>% 
   select(lead_crisis) %>% 
-  bind_cols(predict(temp_wf, clean_df,type = "prob"))
+  bind_cols(predict(temp_fit, clean_df,type = "prob"))
     
   return(temp_pred)
     
@@ -273,4 +271,15 @@ models_df = models_df %>%
 
 ```
 
+
+
+```{r print_logit_coeffs, results="asis"}
+
+models_df$models_fit[[1]] %>% 
+  tidy() %>% 
+  as.data.frame() %>% 
+  stargazer(header = FALSE,type = "html",summary = FALSE)
+
+
+```
 
